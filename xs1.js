@@ -197,18 +197,17 @@ class MyXS1 extends EventEmitter {
             } else val = parseInt(value);
         }
 
-        // XS1 shutters can expose dedicated functions for the end positions.
-        // Using these functions retriggers the physical movement even if the XS1
-        // already reports the same logical position (e.g. value is already 100%).
+        // XS1 shutters can expose dedicated on/off functions for the end positions.
+        // Prefer those functions because they retrigger the physical movement even if
+        // XS1 already reports the same logical position. If no matching function is
+        // configured, fall back to the legacy value=0/100 behaviour.
         if (styp === "actuator" && item.type === "shutter" && (val === 0 || val === 100) && Array.isArray(item.function)) {
-            const target = `${val}%`;
-            const functionIndex = item.function.findIndex(fn =>
-                fn && typeof fn.dsc === "string" && fn.dsc.trim() === target
-            );
+            const functionType = val === 100 ? "on" : "off";
+            const functionIndex = item.function.findIndex(fn => fn && fn.type === functionType);
 
             if (functionIndex >= 0) {
                 const xs1Function = functionIndex + 1;
-                A.I(`XS1 shutter endpoint ${name}: ${val}% -> function=${xs1Function}`);
+                A.I(`XS1 shutter endpoint ${name}: ${val}% -> ${functionType}, function=${xs1Function}`);
                 return this.sendXS1(`set_state_${styp}&number=${id}&function=${xs1Function}`);
             }
         }
