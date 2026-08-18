@@ -184,8 +184,9 @@ class MyXS1 extends EventEmitter {
             this.emit("error", err);
             return A.reject(err);
         }
-        const id = this.names.get(name).number || 0;
-        const styp = this.names.get(name).styp;
+        const item = this.names.get(name);
+        const id = item.number || 0;
+        const styp = item.styp;
         let val = parseFloat(value);
 
         if (styp === "actuator") {
@@ -194,6 +195,22 @@ class MyXS1 extends EventEmitter {
             } else if (typeof value === "number") {
                 val = value > 100 ? 100 : (value <= 0 ? 0 : parseInt(value));
             } else val = parseInt(value);
+        }
+
+        // XS1 shutters can expose dedicated functions for the end positions.
+        // Using these functions retriggers the physical movement even if the XS1
+        // already reports the same logical position (e.g. value is already 100%).
+        if (styp === "actuator" && item.type === "shutter" && (val === 0 || val === 100) && Array.isArray(item.function)) {
+            const target = `${val}%`;
+            const functionIndex = item.function.findIndex(fn =>
+                fn && typeof fn.dsc === "string" && fn.dsc.trim() === target
+            );
+
+            if (functionIndex >= 0) {
+                const xs1Function = functionIndex + 1;
+                A.I(`XS1 shutter endpoint ${name}: ${val}% -> function=${xs1Function}`);
+                return this.sendXS1(`set_state_${styp}&number=${id}&function=${xs1Function}`);
+            }
         }
 
         return this.sendXS1(`set_state_${styp}&number=${id}&value=${val}`);
